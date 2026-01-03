@@ -4,14 +4,46 @@ from domain.models import Order, OrderLine, Address
 class OrderService:
     @classmethod
     @transaction.atomic
-    def create_update_order(cls, reference, shipping_address_data, order_lines_data, customer_email, status=Order.Status.WAITING_PAYMENT):
+    def create_update_order(cls, reference, shipping_address_data, order_lines_data, customer_email, status=None):
         """
         Creates or updates an Order based on the reference.
         """
         order = Order.objects.filter(reference=reference).first()
         if order:
             return cls._update_order(order, shipping_address_data, order_lines_data, customer_email, status)
-        return cls._create_order(reference, shipping_address_data, order_lines_data, customer_email, status)
+        
+        final_status = status or Order.Status.WAITING_PAYMENT
+        return cls._create_order(reference, shipping_address_data, order_lines_data, customer_email, final_status)
+
+    @classmethod
+    @transaction.atomic
+    def confirm_payment(cls, order_id):
+        order = Order.objects.select_for_update().get(pk=order_id)
+        if order.status != Order.Status.WAITING_PAYMENT:
+            raise ValueError(f"Cannot confirm payment for order in status {order.status}")
+        order.status = Order.Status.TO_BE_PREPARED
+        order.save()
+        return order
+
+    @classmethod
+    @transaction.atomic
+    def ship_order(cls, order_id):
+        order = Order.objects.select_for_update().get(pk=order_id)
+        if order.status != Order.Status.TO_BE_PREPARED:
+            raise ValueError(f"Cannot ship order in status {order.status}")
+        order.status = Order.Status.SHIPPED
+        order.save()
+        return order
+
+    @classmethod
+    @transaction.atomic
+    def cancel_order(cls, order_id):
+        order = Order.objects.select_for_update().get(pk=order_id)
+        if order.status == Order.Status.SHIPPED:
+            raise ValueError("Cannot cancel an order that has already been shipped")
+        order.status = Order.Status.CANCELED
+        order.save()
+        return order
 
     @classmethod
     def _create_order(cls, reference, shipping_address_data, order_lines_data, customer_email, status):
@@ -34,7 +66,8 @@ class OrderService:
         address.save()
 
         order.customer_email = customer_email
-        order.status = status
+        if status:
+            order.status = status
         order.save()
 
         order.order_lines.all().delete()
