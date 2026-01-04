@@ -1,5 +1,6 @@
 from django.db import transaction
 from domain.models import Order, OrderLine, Address
+from business.products import ProductService
 
 class OrderService:
     @classmethod
@@ -33,6 +34,7 @@ class OrderService:
             raise ValueError(f"Cannot ship order in status {order.status}")
         order.status = Order.Status.SHIPPED
         order.save()
+        ProductService.mark_products_dirty(order)
         return order
 
     @classmethod
@@ -43,6 +45,7 @@ class OrderService:
             raise ValueError("Cannot cancel an order that has already been shipped")
         order.status = Order.Status.CANCELED
         order.save()
+        ProductService.mark_products_dirty(order)
         return order
 
     @classmethod
@@ -55,6 +58,7 @@ class OrderService:
             status=status
         )
         cls._create_lines(order, order_lines_data)
+        ProductService.mark_products_dirty(order)
         return order
 
     @classmethod
@@ -72,6 +76,7 @@ class OrderService:
 
         order.order_lines.all().delete()
         cls._create_lines(order, order_lines_data)
+        ProductService.mark_products_dirty(order)
         return order
 
     @classmethod

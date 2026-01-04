@@ -173,9 +173,9 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'business.tasks.sync_shopify_orders_task',
         'schedule': 300.0,
     },
-    'recalculate-inventory-every-10-sec': {
+    'recalculate-inventory-every-30-sec': {
         'task': 'business.tasks.recalculate_inventory_task',
-        'schedule': 10.0,
+        'schedule': 30.0,
     },
 }
 
