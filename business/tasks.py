@@ -1,6 +1,6 @@
 from celery import shared_task
 from django.conf import settings
-from .inventory import recalculate_inventory
+from .products import ProductService
 from business.shopify import ShopifyService
 import redis
 import logging
@@ -30,7 +30,7 @@ def recalculate_inventory_task():
         for pid_bytes in product_ids:
             try:
                 pid = int(pid_bytes)
-                recalculate_inventory(pid)
+                ProductService.recalculate_inventory(pid)
                 processed_count += 1
             except Exception as e:
                 logger.error(f"Error processing product ID {pid_bytes}: {e}")
