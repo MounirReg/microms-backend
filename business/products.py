@@ -11,13 +11,19 @@ class ProductService:
         return redis.Redis.from_url(settings.REDIS_URL)
 
     @classmethod
+    def save_product(cls, product):
+        product.save()
+        cls.mark_product_as_dirty(product.id)
+        return product
+
+    @classmethod
     def mark_products_dirty(cls, order):
         lines = order.order_lines.all()
         for line in lines:
-            cls._mark_product_as_dirty(line.product.id)
+            cls.mark_product_as_dirty(line.product.id)
 
     @classmethod
-    def _mark_product_as_dirty(cls, product_id):
+    def mark_product_as_dirty(cls, product_id):
         """
         Marks a product for inventory recalculation
         """
@@ -27,3 +33,8 @@ class ProductService:
         except Exception as e:
             cls.logger.error(
                 f"Error for product {product_id} : {e}")
+            
+    @classmethod
+    def decrement_physical_stock(cls, product, quantity):
+        product.physical_stock -= quantity
+        cls.save_product(product)

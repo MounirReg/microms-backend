@@ -34,8 +34,18 @@ class OrderService:
             raise ValueError(f"Cannot ship order in status {order.status}")
         order.status = Order.Status.SHIPPED
         order.save()
-        ProductService.mark_products_dirty(order)
+
+        cls._decrement_physical_stock(order.order_lines.all())
+
         return order
+    
+    @classmethod
+    def _decrement_physical_stock(cls, order_lines):
+        for line in order_lines:
+            quantity = line.quantity
+            product = line.product
+            ProductService.decrement_physical_stock(product, quantity)
+
 
     @classmethod
     @transaction.atomic

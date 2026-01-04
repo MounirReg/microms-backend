@@ -7,6 +7,9 @@ class Product(models.Model):
     available_stock = models.IntegerField()
     pictureUrl = models.CharField(max_length=200)
 
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.sku
 

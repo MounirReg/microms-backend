@@ -4,11 +4,23 @@ from rest_framework.response import Response
 from domain.models import Product, Order
 from .serializers import ProductSerializer, OrderSerializer
 from business.orders import OrderService
+from business.products import ProductService
 from .filters import OrderFilter
 
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
+
+    def perform_create(self, serializer):
+        instance = Product(**serializer.validated_data)
+        ProductService.save_product(instance)
+
+    def perform_update(self, serializer):
+        instance = serializer.instance
+        for attr, value in serializer.validated_data.items():
+            setattr(instance, attr, value)
+        ProductService.save_product(instance)
+
 
 class OrderViewSet(viewsets.ModelViewSet):
     queryset = Order.objects.all().order_by('-created_at')
