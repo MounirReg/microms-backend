@@ -75,12 +75,12 @@ class OrderService:
         return order
 
     @classmethod
-    def _create_lines(order, order_lines_data):
+    def _create_lines(cls, order, order_lines_data):
         for line_data in order_lines_data:
             OrderLine.objects.create(order=order, **line_data)
 
     @classmethod
-    def get_available_actions(status):
+    def get_available_actions(cls, status):
         actions = []
         if status == Order.Status.WAITING_PAYMENT:
             actions.append('pay')
