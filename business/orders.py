@@ -78,3 +78,16 @@ class OrderService:
     def _create_lines(order, order_lines_data):
         for line_data in order_lines_data:
             OrderLine.objects.create(order=order, **line_data)
+
+    @classmethod
+    def get_available_actions(status):
+        actions = []
+        if status == Order.Status.WAITING_PAYMENT:
+            actions.append('pay')
+            actions.append('cancel')
+        elif status == Order.Status.TO_BE_PREPARED:
+            actions.append('ship')
+            actions.append('cancel')
+        elif status == Order.Status.ERROR:
+            actions.append('cancel')
+        return actions

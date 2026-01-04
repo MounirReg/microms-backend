@@ -52,6 +52,12 @@ class OrderViewSet(viewsets.ModelViewSet):
             return Response(self.get_serializer(order).data)
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['get'])
+    def available_actions(self, request, pk=None):
+        order = self.get_object()
+        actions = OrderService.get_available_actions(order.status)
+        return Response(actions)
         
     def _check_object(self):
         self.get_object()
