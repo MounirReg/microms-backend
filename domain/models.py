@@ -78,3 +78,17 @@ class ShopifyProduct(models.Model):
                 name='unique_shopify_product_link'
             )
         ]
+
+class ShopifyOrder(models.Model):
+    config = models.ForeignKey(ShopifyConfig, on_delete=models.CASCADE)
+    order = models.ForeignKey(Order, on_delete=models.CASCADE)
+    shopify_order_id = models.BigIntegerField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['config', 'order'],
+                name='unique_shopify_order_link'
+            )
+        ]

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from domain.models import Product, Order, OrderLine, Address, ShopifyConfig, ShopifyProduct
+from domain.models import Product, Order, OrderLine, Address, ShopifyConfig, ShopifyProduct, ShopifyOrder
 
 class OrderLineInline(admin.TabularInline):
     model = OrderLine
@@ -16,3 +16,4 @@ admin.site.register(Product)
 admin.site.register(Address)
 admin.site.register(ShopifyConfig)
 admin.site.register(ShopifyProduct)
+admin.site.register(ShopifyOrder)

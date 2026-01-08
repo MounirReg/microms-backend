@@ -2,7 +2,7 @@ import logging
 import requests
 from datetime import timedelta
 from django.utils import timezone
-from domain.models import Order, Product, ShopifyConfig
+from domain.models import Order, Product, ShopifyConfig, ShopifyOrder
 from business.orders import OrderService
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ class ShopifyOrderService:
             response.raise_for_status()
             orders_data = response.json().get("orders", [])
             
-            stats = cls._process_orders_batch(orders_data)
+            stats = cls._process_orders_batch(orders_data, config)
             
             config.last_sync_at = timezone.now()
             config.save()
@@ -46,12 +46,12 @@ class ShopifyOrderService:
         return (timezone.now() - timedelta(days=30)).isoformat()
 
     @classmethod
-    def _process_orders_batch(cls, orders_data):
+    def _process_orders_batch(cls, orders_data, config):
         created_count = 0
         updated_count = 0
         for data in orders_data:
             try:
-                created = cls._process_single_order(data)
+                created = cls._process_single_order(data, config)
                 if created: created_count += 1
                 else: updated_count += 1
             except Exception as e:
@@ -59,7 +59,7 @@ class ShopifyOrderService:
         return {"created": created_count, "updated": updated_count}
 
     @classmethod
-    def _process_single_order(cls, data):
+    def _process_single_order(cls, data, config):
         reference = str(data.get('order_number'))
         is_new = not Order.objects.filter(reference=reference).exists()
 
@@ -71,14 +71,27 @@ class ShopifyOrderService:
 
         shipping_address_data = cls._extract_address(data)
 
-        OrderService.create_update_order(
+        order = OrderService.create_update_order(
             reference=reference,
             customer_email=data.get("email") or "no-email@example.com",
             shipping_address_data=shipping_address_data,
             order_lines_data=order_lines_data,
             status=status
         )
+
+        shopify_order_id = data.get('id')
+        cls._store_order_link(shopify_order_id, order, config)
+
         return is_new
+    
+    @classmethod
+    def _store_order_link(cls, shopify_order_id, order, config):
+        ShopifyOrder.objects.update_or_create(
+            config=config,
+            order=order,
+            defaults={'shopify_order_id': shopify_order_id}
+        )
+        
 
     @classmethod
     def _extract_lines(cls, data):
