@@ -3,7 +3,7 @@ import requests
 from datetime import timedelta
 from django.utils import timezone
 from domain.models import Order, Product, ShopifyConfig, ShopifyOrder
-from business.orders import OrderService
+from business.order_repo import OrderRepository
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class ShopifyOrderService:
 
         shipping_address_data = cls._extract_address(data)
 
-        order = OrderService.create_update_order(
+        order = OrderRepository.create_update_order(
             reference=reference,
             customer_email=data.get("email") or "no-email@example.com",
             shipping_address_data=shipping_address_data,
@@ -131,3 +131,108 @@ class ShopifyOrderService:
         if data.get("financial_status") in ['paid', 'partially_paid']:
             return Order.Status.TO_BE_PREPARED
         return Order.Status.WAITING_PAYMENT
+    
+    @classmethod
+    def fulfill_order(cls, order, tracking):
+        link = ShopifyOrder.objects.filter(order=order).first()
+        if not link:
+            logger.warning(f"No order link for {order.reference}")
+            return False
+        
+        ff_order = cls._fetch_fulfillment(link.config, link.shopify_order_id)
+        if ff_order:
+            cls._create_fulfillment(link.config, ff_order, tracking)
+        else:
+            logger.warning(f"No fulfillment order found for order {order.reference}")
+            return False
+
+        return True
+    
+    @classmethod
+    def _fetch_fulfillment(cls, config, shopify_order_id):
+        query = """
+        query($id: ID!) {
+          order(id: $id) {
+            fulfillmentOrders(first: 1, query: "status:OPEN") {
+              edges {
+                node {
+                  id
+                  lineItems(first: 50) {
+                    edges {
+                      node {
+                        id
+                        remainingQuantity
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        """
+        variables = {"id": f"gid://shopify/Order/{shopify_order_id}"}
+        response = cls._graphql_request(config, query, variables)
+        edges = response.get("data", {}).get("order", {}).get("fulfillmentOrders", {}).get("edges", [])
+        return edges[0]["node"] if edges else None
+
+    @classmethod
+    def _create_fulfillment(cls, config, ff_order, tracking):
+        mutation = """
+        mutation fulfillmentCreateV2($fulfillment: FulfillmentV2Input!) {
+          fulfillmentCreateV2(fulfillment: $fulfillment) {
+            fulfillment { id status }
+            userErrors { field message }
+          }
+        }
+        """
+        
+        fo_lines = []
+        for edge in ff_order["lineItems"]["edges"]:
+            node = edge["node"]
+            if node["remainingQuantity"] > 0:
+                fo_lines.append({
+                    "id": node["id"],
+                    "quantity": node["remainingQuantity"]
+                })
+
+        input_data = {
+            "lineItemsByFulfillmentOrder": [{
+                "fulfillmentOrderId": ff_order["id"],
+                "fulfillmentOrderLineItems": fo_lines
+            }],
+            "notifyCustomer": True
+        }
+        
+        if tracking and tracking.get("number"):
+            input_data["trackingInfo"] = {
+                "number": tracking.get("number"),
+                "company": tracking.get("carrier", "Generic"),
+                "url": tracking.get("url")
+            }
+
+        response = cls._graphql_request(config, mutation, {"fulfillment": input_data})
+        errors = response.get("data", {}).get("fulfillmentCreateV2", {}).get("userErrors", [])
+        if errors:
+            logger.error(f"Fulfillment Error: {errors}")
+
+    @classmethod
+    def _graphql_request(cls, config, query, variables=None):
+        url = f"https://{config.shop_url}/admin/api/2024-10/graphql.json"
+        headers = {
+            "X-Shopify-Access-Token": config.access_token,
+            "Content-Type": "application/json"
+        }
+        payload = {"query": query, "variables": variables}
+        logger.info(f"GraphQL Request to {config.shop_url}: {payload}")
+
+        try:
+            response = requests.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            logger.info(f"GraphQL Response: {data}")
+            return data if data is not None else {}
+        except Exception as e:
+            logger.error(f"GraphQL Error: {e}")
+            return {}
+

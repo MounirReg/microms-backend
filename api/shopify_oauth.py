@@ -25,13 +25,15 @@ class ShopifyInstallView(APIView):
         
         state = 'TEST-SECRET' 
 
-        auth_url = (
-            f"https://{shop}/admin/oauth/authorize?"
-            f"client_id={api_key}&"
-            f"scope={scopes}&"
-            f"redirect_uri={redirect_uri}&"
-            f"state={state}"
-        )
+        params = {
+            'client_id': api_key,
+            'scope': scopes,
+            'redirect_uri': redirect_uri,
+            'state': state
+        }
+        encoded_params = urllib.parse.urlencode(params)
+        
+        auth_url = f"https://{shop}/admin/oauth/authorize?{encoded_params}"
 
         return HttpResponseRedirect(auth_url)
 

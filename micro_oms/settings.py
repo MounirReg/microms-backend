@@ -155,7 +155,7 @@ SHOPIFY_API_KEY = os.getenv('SHOPIFY_API_KEY')
 
 SHOPIFY_API_SECRET = os.getenv('SHOPIFY_API_SECRET')
 
-SHOPIFY_SCOPES = 'write_inventory,read_inventory,read_orders,write_orders,read_products,write_products'
+SHOPIFY_SCOPES = 'write_inventory,read_inventory,read_orders,write_orders,read_products,write_products,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders'
 
 SHOPIFY_REDIRECT_URI = f"{os.getenv('BACKEND_BASE_URL')}/api/shopify/callback"
 
@@ -181,3 +181,48 @@ CELERY_BEAT_SCHEDULE = {
 
 REDIS_URL = 'redis://localhost:6379/1'
 REDIS_INVENTORY_DIRTY_SET_KEY = "inventory:dirty_products"
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+        'file_shopify': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR.parent / 'logs/shopify.log',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'business.shopify_orders': {
+            'handlers': ['file_shopify', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'business.shopify_products': {
+            'handlers': ['file_shopify', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}

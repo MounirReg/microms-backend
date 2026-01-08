@@ -51,7 +51,8 @@ class OrderViewSet(viewsets.ModelViewSet):
     def ship(self, request, pk=None):
         self._check_object()
         try:
-            order = OrderService.ship_order(pk)
+            tracking_info = request.data if request.data else None
+            order = OrderService.ship_order(pk, tracking_info)
             return Response(self.get_serializer(order).data)
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
