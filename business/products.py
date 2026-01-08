@@ -36,6 +36,8 @@ class ProductService:
                 # Update only available_stock to avoid recursion or side effects if save() was overridden
                 product.save(update_fields=['available_stock']) 
 
+            return product
+
         except Product.DoesNotExist:
             cls.logger.warning(f"Product {product_id} not found")
         except Exception as e:

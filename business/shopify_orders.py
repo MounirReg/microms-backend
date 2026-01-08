@@ -2,23 +2,22 @@ import logging
 import requests
 from datetime import timedelta
 from django.utils import timezone
-from django.db import transaction
-from domain.models import ShopifyConfig, Order, Product
+from domain.models import Order, Product, ShopifyConfig
 from business.orders import OrderService
 
 logger = logging.getLogger(__name__)
 
-class ShopifyService:
+class ShopifyOrderService:
     @classmethod
     def sync_all_active_shops(cls):
         configs = ShopifyConfig.objects.filter(active=True)
         results = {}
         for config in configs:
-            results[config.shop_url] = cls._sync_store_orders(config)
+            results[config.shop_url] = cls.sync_store_orders(config)
         return results
 
     @classmethod
-    def _sync_store_orders(cls, config):
+    def sync_store_orders(cls, config):
         shop_url = config.shop_url
         access_token = config.access_token
         
@@ -64,6 +63,25 @@ class ShopifyService:
         reference = str(data.get('order_number'))
         is_new = not Order.objects.filter(reference=reference).exists()
 
+        order_lines_data, all_products_exist = cls._extract_lines(data)
+        status = cls._map_status(data, has_error=not all_products_exist)
+        
+        if status == Order.Status.ERROR:
+            order_lines_data = []
+
+        shipping_address_data = cls._extract_address(data)
+
+        OrderService.create_update_order(
+            reference=reference,
+            customer_email=data.get("email") or "no-email@example.com",
+            shipping_address_data=shipping_address_data,
+            order_lines_data=order_lines_data,
+            status=status
+        )
+        return is_new
+
+    @classmethod
+    def _extract_lines(cls, data):
         lines_data_raw = data.get("line_items", [])
         order_lines_data = []
         all_products_exist = True
@@ -79,30 +97,18 @@ class ShopifyService:
                 })
             else:
                 all_products_exist = False
-                break 
+                break
+        return order_lines_data, all_products_exist
 
-        status = cls._map_status(data, has_error=not all_products_exist)
-        
-        if status == Order.Status.ERROR:
-            order_lines_data = []
-
+    @classmethod
+    def _extract_address(cls, data):
         ship_addr = data.get("shipping_address") or {}
-        shipping_address_data = {
+        return {
             "name": ship_addr.get("name", "Inconnu"),
             "street": ship_addr.get("address1", ""),
             "postal_code": ship_addr.get("zip", ""),
             "country_code": ship_addr.get("country_code", "FR")
         }
-
-        OrderService.create_update_order(
-            reference=reference,
-            customer_email=data.get("email") or "no-email@example.com",
-            shipping_address_data=shipping_address_data,
-            order_lines_data=order_lines_data,
-            status=status
-        )
-
-        return is_new
 
     @classmethod
     def _map_status(cls, data, has_error=False):

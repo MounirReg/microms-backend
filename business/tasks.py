@@ -1,7 +1,9 @@
 from celery import shared_task
 from django.conf import settings
 from .products import ProductService
-from business.shopify import ShopifyService
+from business.shopify_orders import ShopifyOrderService
+from business.shopify_products import ShopifyProductService
+from domain.models import ShopifyConfig
 import redis
 import logging
 
@@ -30,7 +32,9 @@ def recalculate_inventory_task():
         for pid_bytes in product_ids:
             try:
                 pid = int(pid_bytes)
-                ProductService.recalculate_inventory(pid)
+                product = ProductService.recalculate_inventory(pid)
+                if product:
+                    ShopifyProductService.push_inventory_to_shopify(product)
                 processed_count += 1
             except Exception as e:
                 logger.error(f"Error processing product ID {pid_bytes}: {e}")
@@ -47,6 +51,6 @@ def sync_shopify_orders_task():
     Sync orders from all active Shopify stores.
     """
     logger.info("Starting Shopify Order Sync...")
-    results = ShopifyService.sync_all_active_shops()
+    results = ShopifyOrderService.sync_all_active_shops()
     logger.info(f"Shopify Order Sync Finished: {results}")
     return results

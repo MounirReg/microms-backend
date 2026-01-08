@@ -56,6 +56,7 @@ class OrderLine(models.Model):
 class ShopifyConfig(models.Model):
     shop_url = models.CharField(max_length=255, unique=True)
     access_token = models.CharField(max_length=255)
+    location_id = models.BigIntegerField(null=True, blank=True)
     active = models.BooleanField(default=True)
     last_sync_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -63,3 +64,17 @@ class ShopifyConfig(models.Model):
 
     def __str__(self):
         return self.shop_url
+    
+class ShopifyProduct(models.Model):
+    config = models.ForeignKey(ShopifyConfig, on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    inventory_item_id = models.BigIntegerField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['config', 'product'],
+                name='unique_shopify_product_link'
+            )
+        ]
